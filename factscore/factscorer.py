@@ -23,7 +23,8 @@ class FactScorer(object):
                  openai_key="api.key",
                  cost_estimate="consider_cache",
                  abstain_detection_type=None,
-                 batch_size=256):
+                 batch_size=256,
+                 verbose=False):
         assert model_name in ["retrieval+llama", "retrieval+llama+npm", "retrieval+ChatGPT", "npm", "retrieval+ChatGPT+npm"]
         self.model_name = model_name
 
@@ -33,6 +34,7 @@ class FactScorer(object):
         self.batch_size = batch_size # batch size for retrieval
         self.openai_key = openai_key
         self.abstain_detection_type = abstain_detection_type
+        self.verbose = verbose
 
         self.data_dir = data_dir
         self.cache_dir = cache_dir
@@ -127,15 +129,16 @@ class FactScorer(object):
         else:
             if self.af_generator is None:
                 self.af_generator = AtomicFactGenerator(key_path=self.openai_key,
-                                                        demon_dir=os.path.join(self.data_dir, "demos"),
-                                                        gpt3_cache_file=os.path.join(self.cache_dir, "InstructGPT.pkl"))
+                                                        demon_dir=os.path.join(self.data_dir, "demos"),                                                        gpt3_cache_file=os.path.join(self.cache_dir, "ChatGPT.pkl"))
+
+
 
             # estimate the total cost of atomic fact generation
             total_words = 0
             for gen in generations:
                 total_words += self.af_generator.run(gen, cost_estimate=self.cost_estimate)
 
-            self.print_cost_estimates(total_words, task="atomic fact generation", model="davinci-003")
+            self.print_cost_estimates(total_words, task="atomic fact generation", model="gpt-3.5-turbo")
 
             if verbose:
                 topics = tqdm(topics)
@@ -178,6 +181,14 @@ class FactScorer(object):
         init_scores = []
         decisions = []
         for topic, generation, facts in zip(topics, generations, atomic_facts):
+            if self.verbose:
+                print("topic : {}".format(topic))
+                print("-" * 8)
+                print("generation : {}".format(generation))
+                print("-" * 8)
+                print("atomic facts : {}".format(facts))
+                print("-" * 8)
+
             if facts is None:
                 decisions.append(None)
             else:
@@ -193,6 +204,8 @@ class FactScorer(object):
                 scores.append(score)
                 if len(scores) % 10 == 0:
                     self.save_cache()
+            if self.verbose:
+                print("-" * 88)
 
         self.save_cache()
 
@@ -228,7 +241,9 @@ class FactScorer(object):
                     elif cost_estimate == "ignore_cache":
                         total_words += len(prompt.split())
                     continue
-
+                
+                if self.verbose:
+                    print("atom prompt : {}".format(prompt))
                 output = self.lm.generate(prompt)
 
                 if type(output[1])==np.ndarray:
@@ -259,6 +274,8 @@ class FactScorer(object):
                 is_supported = npprob > 0.3
 
             decisions.append({"atom": atom, "is_supported": is_supported})
+            if self.verbose:
+                print("decision : {}".format({"atom": atom, "is_supported": is_supported}))
 
         if cost_estimate:
             return total_words

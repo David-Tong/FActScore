@@ -66,17 +66,20 @@ class DocDB(object):
                     text = [text]
                 passages = [[]]
                 for sent_idx, sent in enumerate(text):
-                    assert len(sent.strip())>0
-                    tokens = tokenizer(sent)["input_ids"]
-                    max_length = MAX_LENGTH - len(passages[-1])
-                    if len(tokens) <= max_length:
-                        passages[-1].extend(tokens)
-                    else:
-                        passages[-1].extend(tokens[:max_length])
-                        offset = max_length
-                        while offset < len(tokens):
-                            passages.append(tokens[offset:offset+MAX_LENGTH])
-                            offset += MAX_LENGTH
+                    # debug
+                    # print("sent : {}".format(sent))
+                    if len(sent.strip())>0:
+                        assert len(sent.strip())>0
+                        tokens = tokenizer(sent)["input_ids"]
+                        max_length = MAX_LENGTH - len(passages[-1])
+                        if len(tokens) <= max_length:
+                            passages[-1].extend(tokens)
+                        else:
+                            passages[-1].extend(tokens[:max_length])
+                            offset = max_length
+                            while offset < len(tokens):
+                                passages.append(tokens[offset:offset+MAX_LENGTH])
+                                offset += MAX_LENGTH
                 
                 psgs = [tokenizer.decode(tokens) for tokens in passages if np.sum([t not in [0, 2] for t in tokens])>0]
                 text = SPECIAL_SEPARATOR.join(psgs)
@@ -98,10 +101,13 @@ class DocDB(object):
     def get_text_from_title(self, title):
         """Fetch the raw text of the doc for 'doc_id'."""
         cursor = self.connection.cursor()
-        cursor.execute("SELECT text FROM documents WHERE title = ?", (title,))
+        # cursor.execute("SELECT text FROM documents WHERE title = ?", (title,))
+        # use like query
+        cursor.execute("SELECT text FROM documents WHERE title LIKE ?", (title,))
         results = cursor.fetchall()
         results = [r for r in results]
         cursor.close()
+        # print("results : {}".format(results))
         assert results is not None and len(results)==1, f"`topic` in your data ({title}) is likely to be not a valid title in the DB."
         results = [{"title": title, "text": para} for para in results[0][0].split(SPECIAL_SEPARATOR)]
         assert len(results)>0, f"`topic` in your data ({title}) is likely to be not a valid title in the DB."
@@ -110,7 +116,8 @@ class DocDB(object):
 class Retrieval(object):
 
     def __init__(self, db, cache_path, embed_cache_path,
-                 retrieval_type="gtr-t5-large", batch_size=None):
+                 #retrieval_type="gtr-t5-large", batch_size=None):
+                 retrieval_type="bm25", batch_size=None):
         self.db = db
         self.cache_path = cache_path
         self.embed_cache_path = embed_cache_path
@@ -193,7 +200,6 @@ class Retrieval(object):
     def get_passages(self, topic, question, k):
         retrieval_query = topic + " " + question.strip()
         cache_key = topic + "#" + retrieval_query
-        
         if cache_key not in self.cache:
             passages = self.db.get_text_from_title(topic)
             if self.retrieval_type=="bm25":

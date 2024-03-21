@@ -23,7 +23,8 @@ class AtomicFactGenerator(object):
         self.is_bio = True
         self.demon_path = os.path.join(demon_dir, "demons.json" if self.is_bio else "demons_complex.json")
 
-        self.openai_lm = OpenAIModel("InstructGPT", cache_file=gpt3_cache_file, key_path=key_path)
+        #self.openai_lm = OpenAIModel("InstructGPT", cache_file=gpt3_cache_file, key_path=key_path)
+        self.openai_lm = OpenAIModel("ChatGPT", cache_file=gpt3_cache_file, key_path=key_path)
 
         # get the demos
         with open(self.demon_path, 'r') as f:
@@ -98,6 +99,8 @@ class AtomicFactGenerator(object):
 
         is_bio = self.is_bio
         demons = self.demons
+        # debug
+        # print("demons : {}".format(demons))
 
         k = 1 if is_bio else 0
         n = 7 if is_bio else 8
@@ -106,9 +109,13 @@ class AtomicFactGenerator(object):
         prompt_to_sent = {}
         atoms = {}
         for sentence in sentences:
+            # debug
+            # print("sentence : {}".format(sentence))
             if sentence in atoms:
                 continue
             top_machings = best_demos(sentence, self.bm25, list(demons.keys()), k)
+            # debug
+            # print("top machings : {}".format(top_machings))
             prompt = ""
 
             for i in range(n):
@@ -122,6 +129,8 @@ class AtomicFactGenerator(object):
                 for fact in demons[match]:
                     prompt = prompt + "- {}\n".format(fact)
                 prompt = prompt + "\n"
+                # debug
+                # print("top_machings prompt : {}".format(prompt))
             prompt = prompt + "Please breakdown the following sentence into independent facts: {}\n".format(sentence)
             prompts.append(prompt)
             prompt_to_sent[prompt] = sentence
@@ -136,6 +145,9 @@ class AtomicFactGenerator(object):
         else:
             for prompt in prompts:
                 output, _ = self.openai_lm.generate(prompt)
+                # debug
+                # print("prompt : {}".format(prompt))
+                # print("output : {}".format(output))
                 atoms[prompt_to_sent[prompt]] = text_to_sentences(output)
 
             for key, value in demons.items():
