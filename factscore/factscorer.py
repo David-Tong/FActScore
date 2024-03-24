@@ -11,6 +11,7 @@ from factscore.atomic_facts import AtomicFactGenerator
 from factscore.clm import CLM
 from factscore.npm import NPM
 from factscore.openai_lm import OpenAIModel
+from factscore.bedrock_lm import BedRockAIModel
 from factscore.retrieval import DocDB, Retrieval
 
 class FactScorer(object):
@@ -25,7 +26,7 @@ class FactScorer(object):
                  abstain_detection_type=None,
                  batch_size=256,
                  verbose=False):
-        assert model_name in ["retrieval+llama", "retrieval+llama+npm", "retrieval+ChatGPT", "npm", "retrieval+ChatGPT+npm"]
+        assert model_name in ["retrieval+llama", "retrieval+llama+npm", "retrieval+ChatGPT", "npm", "retrieval+ChatGPT+npm", "retrieval+bedrock+llama2", "retrieval+bedrock+titan"]
         self.model_name = model_name
 
         self.db = {}
@@ -44,7 +45,14 @@ class FactScorer(object):
         self.af_generator = None
         self.cost_estimate = cost_estimate
 
-        if "llama" in model_name:
+        if "bedrock" in model_name:
+            if "titan" in model_name:
+                self.lm = BedRockAIModel("Titan", 
+                                         cache_file=os.path.join(cache_dir, "Titan.pkl"))
+            elif "llama2" in model_name:
+                self.lm = BedRockAIModel("Llama2", 
+                                         cache_file=os.path.join(cache_dir, "Llama2.pkl"))
+        elif "llama" in model_name:
             self.lm = CLM("inst-llama-7B",
                           model_dir=os.path.join(model_dir, "inst-llama-7B"),
                           cache_file=os.path.join(cache_dir, "inst-llama-7B.pkl"))
@@ -52,6 +60,7 @@ class FactScorer(object):
             self.lm = OpenAIModel("ChatGPT",
                                   cache_file=os.path.join(cache_dir, "ChatGPT.pkl"),
                                   key_path=openai_key)
+       
         else:
             self.lm = None
 
@@ -97,11 +106,19 @@ class FactScorer(object):
             rate = 0.02
         elif model == "gpt-3.5-turbo":
             rate = 0.002
+        
+        # override
+        if "bedrock" in self.model_name:
+            if "titan" in self.model_name:
+                model = "bedrock-titan"
+            elif "llama2" in self.model_name:
+                model = "bedrock-llama2"
+            rate = 0
 
         total_cost = total_tokens * rate / 1000
 
         # print the total words, tokens, and cost along with rate
-        logging.critical("Estimated OpenAI API cost for %s ($%.3f per 1000 tokens): $%.2f for %d words and %d tokens" % (task, rate, total_cost, total_words, total_tokens))
+        logging.critical("Estimated OpenAI API cost for %s using %s ($%.3f per 1000 tokens): $%.2f for %d words and %d tokens" % (task, model, rate, total_cost, total_words, total_tokens))
 
     def get_score(self,
                   topics,
@@ -128,8 +145,8 @@ class FactScorer(object):
             assert len(topics)==len(atomic_facts), "`topics` and `atomic_facts` should have the same length"
         else:
             if self.af_generator is None:
-                self.af_generator = AtomicFactGenerator(key_path=self.openai_key,
-                                                        demon_dir=os.path.join(self.data_dir, "demos"),                                                        gpt3_cache_file=os.path.join(self.cache_dir, "ChatGPT.pkl"))
+                self.af_generator = AtomicFactGenerator(model_name = self.model_name, cache_dir = self.cache_dir, key_path=self.openai_key,
+                                                        demon_dir=os.path.join(self.data_dir, "demos"), gpt3_cache_file=os.path.join(self.cache_dir, "ChatGPT.pkl"))
 
 
 
@@ -204,6 +221,12 @@ class FactScorer(object):
                 scores.append(score)
                 if len(scores) % 10 == 0:
                     self.save_cache()
+
+            print("topic : {}".format(topic))
+            print("-" * 8)
+            print("score : {}".format(score))
+            print("-" * 8)
+            
             if self.verbose:
                 print("-" * 88)
 

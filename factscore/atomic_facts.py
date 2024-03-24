@@ -13,18 +13,27 @@ import time
 from nltk.tokenize import sent_tokenize
 
 from factscore.openai_lm import OpenAIModel
+from factscore.bedrock_lm import BedRockAIModel
 
 nltk.download("punkt")
 
 
 class AtomicFactGenerator(object):
-    def __init__(self, key_path, demon_dir, gpt3_cache_file=None):
+    def __init__(self, model_name, cache_dir, key_path, demon_dir, gpt3_cache_file=None):
         self.nlp = spacy.load("en_core_web_sm")
         self.is_bio = True
         self.demon_path = os.path.join(demon_dir, "demons.json" if self.is_bio else "demons_complex.json")
 
-        #self.openai_lm = OpenAIModel("InstructGPT", cache_file=gpt3_cache_file, key_path=key_path)
-        self.openai_lm = OpenAIModel("ChatGPT", cache_file=gpt3_cache_file, key_path=key_path)
+        # self.lm = OpenAIModel("InstructGPT", cache_file=gpt3_cache_file, key_path=key_path)
+        if "bedrock" in model_name:
+            if "titan" in model_name:
+                self.lm = BedRockAIModel("Titan", 
+                                         cache_file=os.path.join(cache_dir, "Titan.pkl"))
+            elif "llama2" in model_name:
+                self.lm = BedRockAIModel("Llama2", 
+                                         cache_file=os.path.join(cache_dir, "Llama2.pkl"))
+        else:
+            self.lm = OpenAIModel("ChatGPT", cache_file=gpt3_cache_file, key_path=key_path)
 
         # get the demos
         with open(self.demon_path, 'r') as f:
@@ -34,7 +43,7 @@ class AtomicFactGenerator(object):
         self.bm25 = BM25Okapi(tokenized_corpus)
 
     def save_cache(self):
-        self.openai_lm.save_cache()
+        self.lm.save_cache()
 
     def run(self, generation, cost_estimate=None):
         """Convert the generation into a set of atomic facts. Return a total words cost if cost_estimate != None."""
@@ -138,13 +147,13 @@ class AtomicFactGenerator(object):
         if cost_estimate:
             total_words_estimate = 0
             for prompt in prompts:
-                if cost_estimate == "consider_cache" and (prompt.strip() + "_0") in self.openai_lm.cache_dict:
+                if cost_estimate == "consider_cache" and (prompt.strip() + "_0") in self.lm.cache_dict:
                     continue
                 total_words_estimate += len(prompt.split())
             return total_words_estimate
         else:
             for prompt in prompts:
-                output, _ = self.openai_lm.generate(prompt)
+                output, _ = self.lm.generate(prompt)
                 # debug
                 # print("prompt : {}".format(prompt))
                 # print("output : {}".format(output))

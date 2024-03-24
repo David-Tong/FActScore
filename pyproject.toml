@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "factscore"
-version = "0.0.1"
+version = "0.2.0"
 description = "FactScore for politifact dataset"
 authors = ["David Tong <ytong82@berkeley.edu>"]
 license = "MIT"
