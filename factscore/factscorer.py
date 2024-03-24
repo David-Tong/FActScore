@@ -224,8 +224,13 @@ class FactScorer(object):
 
             print("topic : {}".format(topic))
             print("-" * 8)
-            print("score : {}".format(score))
+            print("atomic facts : {}".format(facts))
             print("-" * 8)
+            print("score : {}".format(score))
+            if self.verbose:
+                print("-" * 8)
+            else:
+                print("-" * 88)
             
             if self.verbose:
                 print("-" * 88)

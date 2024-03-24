@@ -2,12 +2,7 @@ from factscore.lm import LM
 import boto3
 from botocore.exceptions import ClientError
 import json
-
-import sys
-import time
-import os
 import numpy as np
-import logging
 
 class BedRockAIModel(LM):
 
@@ -35,15 +30,16 @@ class BedRockAIModel(LM):
             # Call API
             response = self._call_titan(message)
             # Get the output from the response
-            print("response : {}".format(response))
+            #print("response : {}".format(response))
             output = response["results"][0]["outputText"]
             return output, response
         elif self.model_name == "Llama2":
             # Call API
             response = self._call_llama2(prompt)
             # Get the output from the response
-            print(response)
-            output = response["choices"][0]["text"]
+            filter_out = "Please breakdown the following sentence into independent facts"
+            index = response["generation"].find(filter_out)
+            output = response["generation"][:index]
             return output, response
         else:
             raise NotImplementedError()
@@ -72,14 +68,14 @@ class BedRockAIModel(LM):
             for output in output_list:
                 output_tokens += output["tokenCount"]
 
-            #print("Invocation details:")
-            #print(f"- The input length is {input_tokens} tokens.")
-            #print(f"- The output length is {output_tokens} tokens.")
+            # print("Invocation details:")
+            # print(f"- The input length is {input_tokens} tokens.")
+            # print(f"- The output length is {output_tokens} tokens.")
 
-            #print(f"- The model returned {len(output_list)} response(s):")
-            for output in output_list:
-                print("output : {}".format(output["outputText"]))
-            print(result)
+            # print(f"- The model returned {len(output_list)} response(s):")
+            # for output in output_list:
+                # print("output : {}".format(output["outputText"]))
+            # print(result)
             return result
 
         except ClientError as err:
@@ -114,12 +110,12 @@ class BedRockAIModel(LM):
             output_tokens = result["generation_token_count"]
             output = result["generation"]
 
-            print("Invocation details:")
-            print(f"- The input length is {input_tokens} tokens.")
-            print(f"- The output length is {output_tokens} tokens.")
+            # print("Invocation details:")
+            # print(f"- The input length is {input_tokens} tokens.")
+            # print(f"- The output length is {output_tokens} tokens.")
 
-            print(f"- The model returned 1 response(s):")
-            print(output)
+            # print(f"- The model returned 1 response(s):")
+            # print(output)
 
             return result
 
